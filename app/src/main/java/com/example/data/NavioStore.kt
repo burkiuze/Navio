@@ -28,6 +28,7 @@ class NavioStore private constructor(context: Context) {
     val settings: StateFlow<Settings> = _settings.asStateFlow()
 
     init {
+        RemoteConfig.init(context)
         load()
     }
 

@@ -25,14 +25,14 @@ data class CompletionResult(
 data class ToolCall(val id: String, val name: String, val arguments: JSONObject)
 
 /**
- * OpenAI-compatible chat client. Requests go to the Forge AI proxy on Vercel, which holds the
+ * OpenAI-compatible chat client. Requests go to the Forge AI proxy on Vercel (URL from
+ * [RemoteConfig]), which holds the
  * OpenRouter key server-side, so users never enter a key. If a key was baked in from Forge.env at
  * build time, OpenRouter is used directly as a fallback when the proxy is unreachable.
  * Web search uses OpenRouter's `web` plugin; results come back as `url_citation` annotations.
  */
 object OpenRouterClient {
 
-    const val PROXY_BASE = "https://forge-ai-proxy.vercel.app/api/v1"
     private const val OPENROUTER_BASE = "https://openrouter.ai/api/v1"
     private const val WEB_RESULTS = 5
     private val JSON = "application/json".toMediaType()
@@ -52,6 +52,7 @@ object OpenRouterClient {
         webSearch: Boolean = false,
         userToken: String? = null
     ): CompletionResult = withContext(Dispatchers.IO) {
+        RemoteConfig.ensure()
         try {
             completeWithFallbacks(model, messages, tools, webSearch, userToken)
         } catch (e: HttpFailure) {
@@ -96,7 +97,7 @@ object OpenRouterClient {
     private fun send(body: JSONObject, userToken: String?): CompletionResult {
         val directKey = BuildConfig.OPENROUTER_KEY
         return try {
-            post("$PROXY_BASE/chat/completions", body, userToken)
+            post("${RemoteConfig.aiProxyBase}/chat/completions", body, userToken)
         } catch (e: IOException) {
             val proxyDown = e !is HttpFailure || e.code >= 500 || e.code == 404
             if (directKey.isBlank() || !proxyDown) throw e
@@ -135,7 +136,8 @@ object OpenRouterClient {
     /** Free models the proxy serves, for the model picker. */
     suspend fun listModels(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         runCatching {
-            http.newCall(Request.Builder().url("$PROXY_BASE/models").build()).execute().use { response ->
+            RemoteConfig.ensure()
+            http.newCall(Request.Builder().url("${RemoteConfig.aiProxyBase}/models").build()).execute().use { response ->
                 val data = JSONObject(response.body?.string().orEmpty()).optJSONArray("data") ?: JSONArray()
                 (0 until data.length()).mapNotNull { data.optJSONObject(it) }
                     .map { it.optString("id") to it.optString("name").ifBlank { it.optString("id") } }

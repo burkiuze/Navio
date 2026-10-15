@@ -21,12 +21,13 @@ fun envFileValue(path: String, name: String): String? =
     ?.trim('"')
     ?.takeIf { it.isNotEmpty() }
 
-fun openRouterKey(): String =
-  providers.environmentVariable("OPENROUTER_API_KEY").orNull?.takeIf { it.isNotBlank() }
-    ?: envFileValue(".env", "OPENROUTER_API_KEY")
-    ?: envFileValue("../Forge.env/.env", "OPENROUTER_API_KEY")
-    ?: envFileValue("Forge.env/.env", "OPENROUTER_API_KEY")
-    ?: ""
+/** env var -> Navio/.env -> sibling Forge.env/.env clone -> nested Forge.env/.env. */
+fun forgeValue(name: String, default: String = ""): String =
+  providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+    ?: envFileValue(".env", name)
+    ?: envFileValue("../Forge.env/.env", name)
+    ?: envFileValue("Forge.env/.env", name)
+    ?: default
 
 android {
   namespace = "com.example"
@@ -41,9 +42,13 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    // OpenRouter key: env var -> Navio/.env -> sibling Forge.env/.env clone. Baked into BuildConfig;
-    // users can also override it at runtime from the in-app settings sheet.
-    buildConfigField("String", "OPENROUTER_KEY", "\"${openRouterKey()}\"")
+    // Service config lives in Forge.env (private) and on Vercel, not in this repo. With Forge.env
+    // present the values are baked in; otherwise the app fetches them from NAVIO_CONFIG_URL.
+    buildConfigField("String", "NAVIO_CONFIG_URL", "\"${forgeValue("NAVIO_CONFIG_URL", "https://navio-config-uze1.vercel.app/api/config")}\"")
+    buildConfigField("String", "NAVIO_CLERK_FAPI", "\"${forgeValue("NAVIO_CLERK_FAPI")}\"")
+    buildConfigField("String", "NAVIO_AI_PROXY", "\"${forgeValue("NAVIO_AI_PROXY")}\"")
+    // Optional direct-OpenRouter fallback when the proxy is down (local builds with Forge.env only).
+    buildConfigField("String", "OPENROUTER_KEY", "\"${forgeValue("OPENROUTER_API_KEY")}\"")
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,

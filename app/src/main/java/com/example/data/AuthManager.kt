@@ -38,6 +38,10 @@ class AuthManager private constructor(context: Context) {
     private val http = OkHttpClient()
     private val redirectUrl = "clerk://${context.packageName}.callback"
 
+    init {
+        RemoteConfig.init(context)
+    }
+
     private val _user = MutableStateFlow(readUser())
     val user: StateFlow<NavioUser?> = _user.asStateFlow()
 
@@ -157,8 +161,18 @@ class AuthManager private constructor(context: Context) {
         path: String,
         form: Map<String, String>? = null,
         query: Map<String, String> = emptyMap()
+    ): JSONObject {
+        RemoteConfig.ensure()
+        return callFapi(method, path, form, query)
+    }
+
+    private suspend fun callFapi(
+        method: String,
+        path: String,
+        form: Map<String, String>?,
+        query: Map<String, String>
     ): JSONObject = withContext(Dispatchers.IO) {
-        val url = "$FAPI/v1/$path".toHttpUrl().newBuilder()
+        val url = "${RemoteConfig.clerkFrontendApi}/v1/$path".toHttpUrl().newBuilder()
             .addQueryParameter("_is_native", "true")
             .apply { query.forEach { (k, v) -> addQueryParameter(k, v) } }
             .build()
@@ -189,8 +203,6 @@ class AuthManager private constructor(context: Context) {
     }
 
     companion object {
-        // Frontend API of the "Navio" Clerk app (from its publishable key pk_test_…).
-        private const val FAPI = "https://proud-rooster-3295.clerk.accounts.dev"
         private const val API_VERSION = "2026-08-20"
 
         private const val KEY_DEVICE = "device_id"
