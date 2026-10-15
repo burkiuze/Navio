@@ -51,7 +51,6 @@ import com.example.ui.sheets.NewAutomationSheet
 import com.example.ui.sheets.SettingsSheet
 import com.example.ui.sidebar.Sidebar
 import com.example.ui.theme.Background
-import com.example.ui.theme.Surface
 import com.example.ui.theme.TextSecondary
 import com.example.viewmodel.AppMode
 import com.example.viewmodel.NavioUiState
@@ -100,7 +99,7 @@ fun NavioApp(viewModel: NavioViewModel = viewModel()) {
             Row(Modifier.fillMaxSize()) {
                 sidebar(
                     Modifier
-                        .width(300.dp)
+                        .width(340.dp)
                         .padding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start).asPaddingValues())
                 )
                 MainPane(state, viewModel, onMenu = null, onSheet = { sheet = it })
@@ -109,8 +108,8 @@ fun NavioApp(viewModel: NavioViewModel = viewModel()) {
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
-                    ModalDrawerSheet(drawerContainerColor = Surface, modifier = Modifier.width(300.dp)) {
-                        sidebar(Modifier.fillMaxHeight())
+                    ModalDrawerSheet(drawerContainerColor = Background, modifier = Modifier.width(320.dp)) {
+                        sidebar(Modifier.fillMaxHeight().padding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical).asPaddingValues()))
                     }
                 }
             ) {

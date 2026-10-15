@@ -25,8 +25,8 @@ data class CompletionResult(
 data class ToolCall(val id: String, val name: String, val arguments: JSONObject)
 
 /**
- * OpenAI-compatible chat client. Requests go to the Forge AI proxy on Vercel (URL from
- * [RemoteConfig]), which holds the
+ * OpenAI-compatible chat client. Requests go to Navio's AI endpoint on Vercel (URL from
+ * [RemoteConfig]), which checks the Clerk session and holds the
  * OpenRouter key server-side, so users never enter a key. If a key was baked in from Forge.env at
  * build time, OpenRouter is used directly as a fallback when the proxy is unreachable.
  * Web search uses OpenRouter's `web` plugin; results come back as `url_citation` annotations.
@@ -109,7 +109,6 @@ object OpenRouterClient {
         val request = Request.Builder()
             .url(url)
             .apply { if (!bearer.isNullOrBlank()) header("Authorization", "Bearer $bearer") }
-            .header("x-forge-client", "navio")
             .header("HTTP-Referer", "https://github.com/burkiuze/Navio")
             .header("X-Title", "Navio")
             .post(body.toString().toRequestBody(JSON))
@@ -133,7 +132,7 @@ object OpenRouterClient {
         }
     }
 
-    /** Free models the proxy serves, for the model picker. */
+    /** Curated models from the AI endpoint, for the model picker. */
     suspend fun listModels(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         runCatching {
             RemoteConfig.ensure()

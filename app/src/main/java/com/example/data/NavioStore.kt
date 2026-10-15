@@ -38,8 +38,8 @@ class NavioStore private constructor(context: Context) {
 
     private fun readSettings(): Settings {
         val saved = prefs.getString("model", null)
-        // Earlier builds defaulted to a paid model the Forge proxy doesn't serve.
-        val model = saved?.takeIf { it.endsWith(":free") || it == DEFAULT_MODEL } ?: DEFAULT_MODEL
+        // Earlier builds only had the Forge proxy's free models; move those users to Auto.
+        val model = saved?.takeUnless { it.endsWith(":free") || it == "openrouter/free" } ?: DEFAULT_MODEL
         return Settings(model = model, webSearch = prefs.getBoolean("web_search", true))
     }
 
@@ -122,7 +122,7 @@ class NavioStore private constructor(context: Context) {
     // endregion
 
     companion object {
-        const val DEFAULT_MODEL = "openrouter/free"
+        const val DEFAULT_MODEL = "openrouter/auto"
         private const val MAX_RUNS = 20
 
         @Volatile

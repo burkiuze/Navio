@@ -107,10 +107,9 @@ private fun ModeSegment(label: String, icon: ImageVector, selected: Boolean, tag
     }
 }
 
-fun modelLabel(id: String): String = when (id) {
-    "openrouter/free" -> "Auto"
-    else -> id.substringAfter('/').removeSuffix(":free")
-}
+fun modelLabel(id: String, models: List<Pair<String, String>> = emptyList()): String =
+    models.firstOrNull { it.first == id }?.second?.substringAfter(": ")?.removeSuffix(" (en iyi model)")
+        ?: if (id == "openrouter/auto") "Auto" else id.substringAfter('/')
 
 @Composable
 fun Avatar(name: String, size: Int, modifier: Modifier = Modifier) {
@@ -231,10 +230,10 @@ private fun ModelChip(model: String, models: List<Pair<String, String>>, onModel
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(modelLabel(model), color = TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(modelLabel(model, models), color = TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Icon(Icons.Outlined.ExpandMore, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heightIn(max = 460.dp)) {
             models.ifEmpty { listOf(model to modelLabel(model)) }.forEach { (id, label) ->
                 DropdownMenuItem(
                     text = {
