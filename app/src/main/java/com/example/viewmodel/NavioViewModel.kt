@@ -1,271 +1,185 @@
 package com.example.viewmodel
 
-import androidx.lifecycle.ViewModel
-import com.example.model.NavioModel
-import com.example.model.NavioProvider
-import com.example.model.NavioSession
-import com.example.ui.navigation.NavTab
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.automation.AutomationScheduler
+import com.example.data.AgentMode
+import com.example.data.Automation
+import com.example.data.ChatMessage
+import com.example.data.Conversation
+import com.example.data.NavioAgent
+import com.example.data.NavioStore
+import com.example.data.Role
+import com.example.data.Schedule
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.UUID
 
+enum class AppMode { CHAT, COMPUTER }
+
+data class ComputerReply(val text: String, val isError: Boolean = false)
+
 data class NavioUiState(
-    val sessions: List<NavioSession> = emptyList(),
-    val models: List<NavioModel> = emptyList(),
-    val providers: List<NavioProvider> = emptyList(),
-    val searchQuery: String = "",
-    val currentTab: NavTab = NavTab.SESSIONS,
-    val defaultModelId: String = "claude-3-7-sonnet",
-    val selectedSession: NavioSession? = null,
-    val showNewSessionDialog: Boolean = false,
-    val defaultPermissionMode: String = "Ask before writes"
+    val mode: AppMode = AppMode.CHAT,
+    val conversation: Conversation? = null,
+    val conversations: List<Conversation> = emptyList(),
+    val automations: List<Automation> = emptyList(),
+    val settings: NavioStore.Settings? = null,
+    val chatBusy: Boolean = false,
+    val computerBusy: Boolean = false,
+    val computerReply: ComputerReply? = null
 )
 
-class NavioViewModel : ViewModel() {
+private data class LocalState(
+    val mode: AppMode = AppMode.CHAT,
+    val conversationId: String? = null,
+    val chatBusy: Boolean = false,
+    val computerBusy: Boolean = false,
+    val computerReply: ComputerReply? = null
+)
 
-    private val _uiState = MutableStateFlow(NavioUiState())
-    val uiState: StateFlow<NavioUiState> = _uiState.asStateFlow()
+class NavioViewModel(application: Application) : AndroidViewModel(application) {
 
-    init {
-        loadInitialData()
+    private val store = NavioStore.get(application)
+    private val agent = NavioAgent(application)
+    private val local = MutableStateFlow(LocalState())
+
+    val uiState: StateFlow<NavioUiState> =
+        combine(local, store.conversations, store.automations, store.settings) { l, conversations, automations, settings ->
+            NavioUiState(
+                mode = l.mode,
+                conversation = conversations.firstOrNull { it.id == l.conversationId },
+                conversations = conversations,
+                automations = automations,
+                settings = settings,
+                chatBusy = l.chatBusy,
+                computerBusy = l.computerBusy,
+                computerReply = l.computerReply
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, NavioUiState(settings = store.settings.value))
+
+    private val _snackbar = MutableStateFlow<String?>(null)
+    val snackbar: StateFlow<String?> = _snackbar.asStateFlow()
+
+    fun consumeSnackbar() {
+        _snackbar.value = null
     }
 
-    private fun loadInitialData() {
-        val initialSessions = listOf(
-            NavioSession(
-                id = "sess-1",
-                title = "Refactor SQLite schema to v2 migrations with type-safe queries",
-                lastActivity = "2m ago",
-                modelName = "claude-3-7-sonnet",
-                workspacePath = "~/workspaces/navio-core",
-                permissionMode = "Ask before writes",
-                previewText = "db.execSQL(\"ALTER TABLE sessions ADD COLUMN model_config TEXT\")",
-                messageCount = 8,
-                status = "Idle"
-            ),
-            NavioSession(
-                id = "sess-2",
-                title = "Implement streaming diff parser & syntax highlighter",
-                lastActivity = "18m ago",
-                modelName = "gpt-4o",
-                workspacePath = "~/workspaces/navio-core",
-                permissionMode = "Auto-approve",
-                previewText = "const lines = unifiedDiff.split('\\n'); return renderDiffTree(lines);",
-                messageCount = 14,
-                status = "Idle"
-            ),
-            NavioSession(
-                id = "sess-3",
-                title = "Fix JWT token refresh race condition in auth gateway",
-                lastActivity = "1h ago",
-                modelName = "claude-3-5-haiku",
-                workspacePath = "~/projects/auth-gateway",
-                permissionMode = "Ask before writes",
-                previewText = "suspend fun refreshTokensMutex() = withLock { ... }",
-                messageCount = 5,
-                status = "Completed"
-            ),
-            NavioSession(
-                id = "sess-4",
-                title = "Benchmark agent loop tool call latencies vs OpenAI",
-                lastActivity = "Yesterday",
-                modelName = "deepseek-chat",
-                workspacePath = "~/benchmarks/tool-latency",
-                permissionMode = "Read-only",
-                previewText = "Mean latency: 342ms with 99.8% schema adherence across 25 steps",
-                messageCount = 22,
-                status = "Completed"
-            ),
-            NavioSession(
-                id = "sess-5",
-                title = "Build interactive Canvas chart for token economics",
-                lastActivity = "3 days ago",
-                modelName = "gpt-4o",
-                workspacePath = "~/visualizer/charts",
-                permissionMode = "Ask before writes",
-                previewText = "Canvas(modifier = Modifier.fillMaxSize()) { drawPath(...) }",
-                messageCount = 11,
-                status = "Idle"
-            )
-        )
+    fun setMode(mode: AppMode) = local.update { it.copy(mode = mode) }
 
-        val initialModels = listOf(
-            NavioModel(
-                id = "claude-3-7-sonnet",
-                name = "Claude 3.7 Sonnet",
-                providerId = "anthropic",
-                contextWindow = "200k tokens",
-                isDefault = true,
-                supportsTools = true,
-                supportsStreaming = true,
-                description = "Anthropic's flagship reasoning & coding model with extended thinking."
-            ),
-            NavioModel(
-                id = "gpt-4o",
-                name = "GPT-4o",
-                providerId = "openai",
-                contextWindow = "128k tokens",
-                isDefault = false,
-                supportsTools = true,
-                supportsStreaming = true,
-                description = "High-speed multimodal coding & tool-execution model."
-            ),
-            NavioModel(
-                id = "claude-3-5-haiku",
-                name = "Claude 3.5 Haiku",
-                providerId = "anthropic",
-                contextWindow = "200k tokens",
-                isDefault = false,
-                supportsTools = true,
-                supportsStreaming = true,
-                description = "Ultra-fast lightweight coding model for quick edits."
-            ),
-            NavioModel(
-                id = "gpt-4o-mini",
-                name = "GPT-4o Mini",
-                providerId = "openai",
-                contextWindow = "128k tokens",
-                isDefault = false,
-                supportsTools = true,
-                supportsStreaming = true,
-                description = "Cost-efficient compact model for simple scripts."
-            ),
-            NavioModel(
-                id = "deepseek-chat",
-                name = "DeepSeek V3",
-                providerId = "openrouter",
-                contextWindow = "64k tokens",
-                isDefault = false,
-                supportsTools = true,
-                supportsStreaming = true,
-                description = "OpenAI-compatible endpoint for DeepSeek coding capabilities."
-            ),
-            NavioModel(
-                id = "deepseek-r1",
-                name = "DeepSeek R1",
-                providerId = "openrouter",
-                contextWindow = "64k tokens",
-                isDefault = false,
-                supportsTools = true,
-                supportsStreaming = true,
-                description = "Reasoning model with deep verification chains."
-            )
-        )
+    // region chat
 
-        val initialProviders = listOf(
-            NavioProvider(
-                id = "anthropic",
-                name = "Anthropic",
-                protocol = "Messages API",
-                baseUrl = "https://api.anthropic.com",
-                isConfigured = true,
-                maskedKey = "sk-ant-...489c",
-                models = listOf("claude-3-7-sonnet", "claude-3-5-haiku")
-            ),
-            NavioProvider(
-                id = "openai",
-                name = "OpenAI",
-                protocol = "OpenAI-compatible",
-                baseUrl = "https://api.openai.com/v1",
-                isConfigured = true,
-                maskedKey = "sk-proj-...89df",
-                models = listOf("gpt-4o", "gpt-4o-mini")
-            ),
-            NavioProvider(
-                id = "openrouter",
-                name = "OpenRouter",
-                protocol = "OpenAI-compatible",
-                baseUrl = "https://openrouter.ai/api/v1",
-                isConfigured = true,
-                maskedKey = "sk-or-...12a7",
-                models = listOf("deepseek-chat", "deepseek-r1")
-            )
-        )
+    fun newChat() = local.update { it.copy(conversationId = null, mode = AppMode.CHAT) }
 
-        _uiState.update {
-            it.copy(
-                sessions = initialSessions,
-                models = initialModels,
-                providers = initialProviders
-            )
+    fun openConversation(id: String) = local.update { it.copy(conversationId = id, mode = AppMode.CHAT) }
+
+    fun deleteConversation(id: String) {
+        store.deleteConversation(id)
+        if (local.value.conversationId == id) local.update { it.copy(conversationId = null) }
+    }
+
+    fun setWebSearch(enabled: Boolean) = store.updateSettings { it.copy(webSearch = enabled) }
+
+    fun setModel(model: String) = store.updateSettings { it.copy(model = model) }
+
+    fun sendChat(text: String) {
+        val prompt = text.trim()
+        if (prompt.isEmpty() || local.value.chatBusy) return
+        val existing = local.value.conversationId?.let(store::conversation)
+        val userMessage = ChatMessage(UUID.randomUUID().toString(), Role.USER, prompt)
+        val conversation = (existing ?: Conversation(
+            id = UUID.randomUUID().toString(),
+            title = prompt.lineSequence().first().take(60),
+            messages = emptyList()
+        )).let { it.copy(messages = it.messages + userMessage, updatedAt = System.currentTimeMillis()) }
+        store.upsertConversation(conversation)
+        local.update { it.copy(conversationId = conversation.id, chatBusy = true) }
+
+        viewModelScope.launch {
+            val reply = try {
+                val result = agent.reply(conversation.messages, store.settings.value.webSearch, AgentMode.CHAT)
+                ChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    role = Role.ASSISTANT,
+                    content = result.content,
+                    sources = result.sources,
+                    createdAutomationIds = result.createdAutomations.map { it.id }
+                )
+            } catch (e: Exception) {
+                ChatMessage(UUID.randomUUID().toString(), Role.ASSISTANT, e.message ?: e.toString(), isError = true)
+            }
+            val latest = store.conversation(conversation.id) ?: conversation
+            store.upsertConversation(latest.copy(messages = latest.messages + reply, updatedAt = System.currentTimeMillis()))
+            local.update { it.copy(chatBusy = false) }
         }
     }
 
-    fun onTabSelected(tab: NavTab) {
-        _uiState.update { it.copy(currentTab = tab, selectedSession = null) }
+    // endregion
+
+    // region computer
+
+    /** Natural-language automation setup from the Computer tab. */
+    fun sendComputer(text: String) {
+        val prompt = text.trim()
+        if (prompt.isEmpty() || local.value.computerBusy) return
+        local.update { it.copy(computerBusy = true, computerReply = null) }
+        viewModelScope.launch {
+            val reply = try {
+                val result = agent.reply(
+                    listOf(ChatMessage(UUID.randomUUID().toString(), Role.USER, prompt)),
+                    webSearch = false,
+                    mode = AgentMode.COMPUTER
+                )
+                ComputerReply(result.content)
+            } catch (e: Exception) {
+                ComputerReply(e.message ?: e.toString(), isError = true)
+            }
+            local.update { it.copy(computerBusy = false, computerReply = reply) }
+        }
     }
 
-    fun onSearchQueryChange(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
-    }
+    fun dismissComputerReply() = local.update { it.copy(computerReply = null) }
 
-    fun onSelectSession(session: NavioSession?) {
-        _uiState.update { it.copy(selectedSession = session) }
-    }
-
-    fun onSetShowNewSessionDialog(show: Boolean) {
-        _uiState.update { it.copy(showNewSessionDialog = show) }
-    }
-
-    fun createSession(
-        title: String,
-        modelName: String,
-        workspacePath: String,
-        permissionMode: String
-    ) {
-        val newSession = NavioSession(
-            id = "sess-${UUID.randomUUID().toString().take(6)}",
-            title = title,
-            lastActivity = "Just now",
-            modelName = modelName,
-            workspacePath = workspacePath,
-            permissionMode = permissionMode,
-            previewText = "// Ready for your first coding prompt",
-            messageCount = 0,
-            status = "Idle"
+    fun createAutomation(name: String, prompt: String, schedule: Schedule, useWebSearch: Boolean) {
+        val automation = Automation(
+            id = UUID.randomUUID().toString(),
+            name = name.trim().ifBlank { "Otomasyon" },
+            prompt = prompt.trim(),
+            schedule = schedule,
+            useWebSearch = useWebSearch
         )
-
-        _uiState.update { current ->
-            current.copy(
-                sessions = listOf(newSession) + current.sessions,
-                showNewSessionDialog = false,
-                selectedSession = newSession // Open the newly created session directly
-            )
-        }
+        store.upsertAutomation(automation)
+        AutomationScheduler.schedule(getApplication(), automation)
+        _snackbar.value = "\"${automation.name}\" kuruldu · ${schedule.describe()}"
     }
 
-    fun setDefaultModel(modelId: String) {
-        _uiState.update { current ->
-            current.copy(
-                defaultModelId = modelId,
-                models = current.models.map { it.copy(isDefault = it.id == modelId) }
-            )
-        }
+    fun setAutomationEnabled(id: String, enabled: Boolean) {
+        val automation = store.automation(id)?.copy(enabled = enabled) ?: return
+        store.upsertAutomation(automation)
+        AutomationScheduler.schedule(getApplication(), automation)
     }
 
-    fun addProvider(name: String, protocol: String, baseUrl: String, apiKey: String) {
-        val masked = if (apiKey.length > 8) "${apiKey.take(4)}...${apiKey.takeLast(4)}" else "sk-...configured"
-        val newProvider = NavioProvider(
-            id = name.lowercase().replace(" ", "-"),
-            name = name,
-            protocol = protocol,
-            baseUrl = baseUrl,
-            isConfigured = apiKey.isNotEmpty(),
-            maskedKey = masked,
-            models = listOf("custom-model-1")
-        )
-        _uiState.update { current ->
-            current.copy(providers = current.providers + newProvider)
-        }
+    fun runAutomationNow(id: String) {
+        AutomationScheduler.runNow(getApplication(), id)
+        _snackbar.value = "Otomasyon çalıştırılıyor…"
     }
 
-    fun updatePermissionMode(mode: String) {
-        _uiState.update { it.copy(defaultPermissionMode = mode) }
+    fun deleteAutomation(id: String) {
+        AutomationScheduler.cancel(getApplication(), id)
+        store.deleteAutomation(id)
     }
 
-    fun resetSampleData() {
-        loadInitialData()
+    // endregion
+
+    fun saveSettings(apiKey: String, model: String) {
+        store.updateSettings { it.copy(apiKeyOverride = apiKey, model = model) }
+        _snackbar.value = "Ayarlar kaydedildi"
     }
 }

@@ -8,6 +8,26 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+fun envFileValue(path: String, name: String): String? =
+  providers
+    .fileContents(rootProject.layout.projectDirectory.file(path))
+    .asText
+    .orNull
+    ?.lineSequence()
+    ?.map { it.trim() }
+    ?.firstOrNull { it.startsWith("$name=") }
+    ?.substringAfter('=')
+    ?.trim()
+    ?.trim('"')
+    ?.takeIf { it.isNotEmpty() }
+
+fun openRouterKey(): String =
+  providers.environmentVariable("OPENROUTER_API_KEY").orNull?.takeIf { it.isNotBlank() }
+    ?: envFileValue(".env", "OPENROUTER_API_KEY")
+    ?: envFileValue("../Forge.env/.env", "OPENROUTER_API_KEY")
+    ?: envFileValue("Forge.env/.env", "OPENROUTER_API_KEY")
+    ?: ""
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -20,6 +40,10 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // OpenRouter key: env var -> Navio/.env -> sibling Forge.env/.env clone. Baked into BuildConfig;
+    // users can also override it at runtime from the in-app settings sheet.
+    buildConfigField("String", "OPENROUTER_KEY", "\"${openRouterKey()}\"")
   }
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
@@ -105,6 +129,7 @@ dependencies {
   // implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.work.runtime.ktx)
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)

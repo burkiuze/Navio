@@ -1,6 +1,6 @@
 {
   "name": "Navio",
-  "description": "On-device mobile coding assistant with multi-model AI providers, session management, and local workspace tools.",
+  "description": "AI assistant with two modes: Chat (OpenRouter models with web search) and Computer (scheduled AI automations that can also be created from chat).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
