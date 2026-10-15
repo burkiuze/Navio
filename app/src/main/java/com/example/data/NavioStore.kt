@@ -19,6 +19,11 @@ class NavioStore private constructor(context: Context) {
     private val file = File(context.filesDir, "navio.json")
     private val prefs = context.getSharedPreferences("navio_settings", Context.MODE_PRIVATE)
 
+    /** Key bundled as assets/openrouter.key (injected into prebuilt APKs instead of BuildConfig). */
+    private val assetKey: String =
+        runCatching { context.assets.open("openrouter.key").bufferedReader().use { it.readText().trim() } }
+            .getOrDefault("")
+
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
 
@@ -35,24 +40,26 @@ class NavioStore private constructor(context: Context) {
     // region settings
 
     data class Settings(
-        /** User-entered key; empty means use the key baked in from Forge.env at build time. */
+        /** User-entered key; empty means use the key bundled from Forge.env. */
         val apiKeyOverride: String,
         val model: String,
-        val webSearch: Boolean
+        val webSearch: Boolean,
+        val bundledKey: String
     ) {
-        val effectiveApiKey: String get() = apiKeyOverride.ifBlank { BuildConfig.OPENROUTER_KEY }
+        val effectiveApiKey: String get() = apiKeyOverride.ifBlank { bundledKey }
         val keySource: String
             get() = when {
                 apiKeyOverride.isNotBlank() -> "Uygulama ayarı"
-                BuildConfig.OPENROUTER_KEY.isNotBlank() -> "Forge.env"
-                else -> "Yok"
+                bundledKey.isNotBlank() -> "Forge.env"
+                else -> "Yok — aşağıya anahtar girin"
             }
     }
 
     private fun readSettings() = Settings(
         apiKeyOverride = prefs.getString("api_key", "").orEmpty(),
         model = prefs.getString("model", DEFAULT_MODEL) ?: DEFAULT_MODEL,
-        webSearch = prefs.getBoolean("web_search", true)
+        webSearch = prefs.getBoolean("web_search", true),
+        bundledKey = BuildConfig.OPENROUTER_KEY.ifBlank { assetKey }
     )
 
     fun updateSettings(transform: (Settings) -> Settings) {
