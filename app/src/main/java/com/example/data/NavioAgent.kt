@@ -23,6 +23,7 @@ class NavioAgent(context: Context) {
 
     private val appContext = context.applicationContext
     private val store = NavioStore.get(appContext)
+    private val auth = AuthManager.get(appContext)
 
     suspend fun reply(history: List<ChatMessage>, webSearch: Boolean, mode: AgentMode): AgentReply {
         val settings = store.settings.value
@@ -40,11 +41,11 @@ class NavioAgent(context: Context) {
         var useWeb = webSearch
         repeat(MAX_TOOL_ROUNDS) {
             val result = OpenRouterClient.complete(
-                apiKey = settings.effectiveApiKey,
                 model = settings.model,
                 messages = messages,
                 tools = TOOLS,
-                webSearch = useWeb
+                webSearch = useWeb,
+                userToken = auth.accessToken()
             )
             sources += result.sources
             if (result.toolCalls.isEmpty()) {
@@ -82,8 +83,8 @@ class NavioAgent(context: Context) {
         val startedAt = System.currentTimeMillis()
         return try {
             val result = OpenRouterClient.complete(
-                apiKey = settings.effectiveApiKey,
                 model = settings.model,
+                userToken = auth.accessToken(),
                 messages = JSONArray()
                     .put(system(automationRunPrompt(automation)))
                     .put(JSONObject().put("role", "user").put("content", automation.prompt)),

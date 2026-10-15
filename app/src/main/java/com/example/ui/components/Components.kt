@@ -107,14 +107,23 @@ private fun ModeSegment(label: String, icon: ImageVector, selected: Boolean, tag
     }
 }
 
-val MODEL_PRESETS = listOf(
-    "openai/gpt-4o-mini" to "GPT-4o mini",
-    "google/gemini-2.5-flash" to "Gemini 2.5 Flash",
-    "anthropic/claude-sonnet-4.5" to "Claude Sonnet 4.5",
-    "openrouter/auto" to "Auto"
-)
+fun modelLabel(id: String): String = when (id) {
+    "openrouter/free" -> "Auto"
+    else -> id.substringAfter('/').removeSuffix(":free")
+}
 
-fun modelLabel(id: String): String = MODEL_PRESETS.firstOrNull { it.first == id }?.second ?: id.substringAfter('/')
+@Composable
+fun Avatar(name: String, size: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(TealContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(name.trim().take(1).uppercase().ifBlank { "N" }, color = Teal, fontSize = (size * 0.42f).sp, fontWeight = FontWeight.SemiBold)
+    }
+}
 
 /**
  * Bottom prompt box. [onLeading] is the "+" action; the model chip and web toggle are only shown
@@ -128,6 +137,7 @@ fun PromptBar(
     modifier: Modifier = Modifier,
     onLeading: (() -> Unit)? = null,
     model: String? = null,
+    models: List<Pair<String, String>> = emptyList(),
     onModelChange: ((String) -> Unit)? = null,
     webSearch: Boolean? = null,
     onWebSearchChange: ((Boolean) -> Unit)? = null,
@@ -170,7 +180,7 @@ fun PromptBar(
             if (onLeading != null) {
                 IconButton(onClick = onLeading) { Icon(Icons.Outlined.Add, "Yeni", tint = TextSecondary) }
             }
-            if (model != null && onModelChange != null) ModelChip(model, onModelChange)
+            if (model != null && onModelChange != null) ModelChip(model, models, onModelChange)
             Spacer(Modifier.weight(1f))
             if (webSearch != null && onWebSearchChange != null) {
                 val color = if (webSearch) Teal else TextTertiary
@@ -210,7 +220,7 @@ fun PromptBar(
 }
 
 @Composable
-private fun ModelChip(model: String, onModelChange: (String) -> Unit) {
+private fun ModelChip(model: String, models: List<Pair<String, String>>, onModelChange: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
@@ -225,7 +235,7 @@ private fun ModelChip(model: String, onModelChange: (String) -> Unit) {
             Icon(Icons.Outlined.ExpandMore, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            MODEL_PRESETS.forEach { (id, label) ->
+            models.ifEmpty { listOf(model to modelLabel(model)) }.forEach { (id, label) ->
                 DropdownMenuItem(
                     text = {
                         Column {

@@ -22,8 +22,8 @@ jobs:
           gradle-version: "9.3.1"
       - name: Create debug keystore
         run: keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-      # Public repo: the OpenRouter key is never available here. The APK falls back to the key
-      # entered in Settings (or an assets/openrouter.key injected after the build).
+      # Public repo: no OpenRouter key here. The app talks to the Forge AI proxy on Vercel,
+      # which holds the key server-side.
       - name: Build debug APK
         run: gradle assembleDebug --no-configuration-cache --stacktrace
       - uses: actions/upload-artifact@v4

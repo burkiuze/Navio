@@ -105,9 +105,9 @@ private fun EmptyChat(onSuggestion: (String) -> Unit, modifier: Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        NavioLogo(72.dp, tint = TextSecondary)
+        NavioLogo(36.dp, tint = TextSecondary)
         Spacer(Modifier.height(20.dp))
-        Text("Navio", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Text("Navio", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text(
             "Sor, araştır ya da tek cümleyle otomasyon kur.",

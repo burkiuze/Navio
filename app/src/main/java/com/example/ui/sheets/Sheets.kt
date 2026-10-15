@@ -18,16 +18,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -42,15 +39,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.Conversation
+import com.example.data.NavioUser
 import com.example.data.NavioStore
 import com.example.data.Schedule
 import com.example.data.ScheduleType
-import com.example.ui.components.MODEL_PRESETS
+import com.example.ui.components.Avatar
+import com.example.ui.components.modelLabel
+import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.Background
 import com.example.ui.theme.Surface
 import com.example.ui.theme.Teal
@@ -58,8 +56,6 @@ import com.example.ui.theme.TealContainer
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
-import java.text.DateFormat
-import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,88 +82,62 @@ private fun SheetTitle(text: String) {
 }
 
 @Composable
-fun HistorySheet(
-    conversations: List<Conversation>,
-    onOpen: (String) -> Unit,
-    onDelete: (String) -> Unit,
+fun SettingsSheet(
+    settings: NavioStore.Settings,
+    user: NavioUser?,
+    models: List<Pair<String, String>>,
+    onModelChange: (String) -> Unit,
+    onSignOut: () -> Unit,
     onDismiss: () -> Unit
 ) = NavioSheet(onDismiss) {
-    SheetTitle("Sohbetler")
-    if (conversations.isEmpty()) {
-        Text("Henüz sohbet yok.", color = TextSecondary, modifier = Modifier.padding(vertical = 24.dp))
-        return@NavioSheet
+    SheetTitle("Ayarlar")
+    if (user != null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Avatar(user.name, size = 44)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(user.name, color = TextPrimary, fontSize = 17.sp)
+                Text(user.email, color = TextSecondary, fontSize = 14.sp)
+            }
+        }
+        Spacer(Modifier.height(20.dp))
     }
-    LazyColumn(Modifier.heightIn(max = 560.dp)) {
-        items(conversations, key = { it.id }) { conversation ->
+    Text("Model", color = TextSecondary, fontSize = 14.sp)
+    Spacer(Modifier.height(4.dp))
+    LazyColumn(Modifier.heightIn(max = 320.dp)) {
+        items(models.ifEmpty { listOf(settings.model to modelLabel(settings.model)) }, key = { it.first }) { (id, label) ->
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable { onOpen(conversation.id) }
-                    .padding(vertical = 12.dp),
+                    .clickable { onModelChange(id) }
+                    .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(conversation.title, color = TextPrimary, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(conversation.updatedAt)),
-                        color = TextTertiary,
-                        fontSize = 13.sp
-                    )
+                    Text(label, color = TextPrimary, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(id, color = TextTertiary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = { onDelete(conversation.id) }) {
-                    Icon(Icons.Outlined.DeleteOutline, "Sil", tint = TextSecondary)
-                }
+                if (id == settings.model) Text("Seçili", color = Teal, fontSize = 13.sp)
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun SettingsSheet(
-    settings: NavioStore.Settings,
-    onSave: (apiKey: String, model: String) -> Unit,
-    onDismiss: () -> Unit
-) = NavioSheet(onDismiss) {
-    var apiKey by remember { mutableStateOf(settings.apiKeyOverride) }
-    var model by remember { mutableStateOf(settings.model) }
-    SheetTitle("Ayarlar")
-    Text("OpenRouter anahtarı kaynağı: ${settings.keySource}", color = TextSecondary, fontSize = 14.sp)
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
-        value = apiKey,
-        onValueChange = { apiKey = it },
-        label = { Text("API anahtarı (boş = Forge.env)") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(
-        value = model,
-        onValueChange = { model = it },
-        label = { Text("Model (OpenRouter kimliği)") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-    Spacer(Modifier.height(8.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        MODEL_PRESETS.forEach { (id, label) ->
-            FilterChip(selected = model == id, onClick = { model = id }, label = { Text(label) }, colors = chipColors())
         }
     }
     Spacer(Modifier.height(8.dp))
     Text(
-        "Web araması OpenRouter'ın web eklentisiyle yapılır; istek başına küçük bir ek ücret alınır.",
+        "Yapay zekâ istekleri Forge AI proxy'si (Vercel) üzerinden gider; API anahtarı girmeniz gerekmez.",
         color = TextTertiary,
         fontSize = 13.sp
     )
     Spacer(Modifier.height(20.dp))
-    PrimaryButton("Kaydet") {
-        onSave(apiKey, model)
-        onDismiss()
+    if (user != null) {
+        OutlinedButton(
+            onClick = {
+                onSignOut()
+                onDismiss()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) { Text("Çıkış yap", color = ErrorRed, fontSize = 16.sp) }
     }
 }
 

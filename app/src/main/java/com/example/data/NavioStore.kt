@@ -1,7 +1,6 @@
 package com.example.data
 
 import android.content.Context
-import com.example.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,11 +18,6 @@ class NavioStore private constructor(context: Context) {
     private val file = File(context.filesDir, "navio.json")
     private val prefs = context.getSharedPreferences("navio_settings", Context.MODE_PRIVATE)
 
-    /** Key bundled as assets/openrouter.key (injected into prebuilt APKs instead of BuildConfig). */
-    private val assetKey: String =
-        runCatching { context.assets.open("openrouter.key").bufferedReader().use { it.readText().trim() } }
-            .getOrDefault("")
-
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
 
@@ -39,33 +33,18 @@ class NavioStore private constructor(context: Context) {
 
     // region settings
 
-    data class Settings(
-        /** User-entered key; empty means use the key bundled from Forge.env. */
-        val apiKeyOverride: String,
-        val model: String,
-        val webSearch: Boolean,
-        val bundledKey: String
-    ) {
-        val effectiveApiKey: String get() = apiKeyOverride.ifBlank { bundledKey }
-        val keySource: String
-            get() = when {
-                apiKeyOverride.isNotBlank() -> "Uygulama ayarı"
-                bundledKey.isNotBlank() -> "Forge.env"
-                else -> "Yok — aşağıya anahtar girin"
-            }
-    }
+    data class Settings(val model: String, val webSearch: Boolean)
 
-    private fun readSettings() = Settings(
-        apiKeyOverride = prefs.getString("api_key", "").orEmpty(),
-        model = prefs.getString("model", DEFAULT_MODEL) ?: DEFAULT_MODEL,
-        webSearch = prefs.getBoolean("web_search", true),
-        bundledKey = BuildConfig.OPENROUTER_KEY.ifBlank { assetKey }
-    )
+    private fun readSettings(): Settings {
+        val saved = prefs.getString("model", null)
+        // Earlier builds defaulted to a paid model the Forge proxy doesn't serve.
+        val model = saved?.takeIf { it.endsWith(":free") || it == DEFAULT_MODEL } ?: DEFAULT_MODEL
+        return Settings(model = model, webSearch = prefs.getBoolean("web_search", true))
+    }
 
     fun updateSettings(transform: (Settings) -> Settings) {
         val next = transform(_settings.value)
         prefs.edit()
-            .putString("api_key", next.apiKeyOverride.trim())
             .putString("model", next.model.trim().ifBlank { DEFAULT_MODEL })
             .putBoolean("web_search", next.webSearch)
             .apply()
@@ -142,7 +121,7 @@ class NavioStore private constructor(context: Context) {
     // endregion
 
     companion object {
-        const val DEFAULT_MODEL = "openai/gpt-4o-mini"
+        const val DEFAULT_MODEL = "openrouter/free"
         private const val MAX_RUNS = 20
 
         @Volatile

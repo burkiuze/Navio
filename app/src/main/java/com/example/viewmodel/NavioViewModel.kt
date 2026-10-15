@@ -1,15 +1,19 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automation.AutomationScheduler
 import com.example.data.AgentMode
+import com.example.data.AuthManager
 import com.example.data.Automation
 import com.example.data.ChatMessage
 import com.example.data.Conversation
 import com.example.data.NavioAgent
 import com.example.data.NavioStore
+import com.example.data.NavioUser
+import com.example.data.OpenRouterClient
 import com.example.data.Role
 import com.example.data.Schedule
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +38,11 @@ data class NavioUiState(
     val settings: NavioStore.Settings? = null,
     val chatBusy: Boolean = false,
     val computerBusy: Boolean = false,
-    val computerReply: ComputerReply? = null
+    val computerReply: ComputerReply? = null,
+    val user: NavioUser? = null,
+    val authBusy: Boolean = false,
+    val authError: String? = null,
+    val models: List<Pair<String, String>> = emptyList()
 )
 
 private data class LocalState(
@@ -42,17 +50,21 @@ private data class LocalState(
     val conversationId: String? = null,
     val chatBusy: Boolean = false,
     val computerBusy: Boolean = false,
-    val computerReply: ComputerReply? = null
+    val computerReply: ComputerReply? = null,
+    val authBusy: Boolean = false,
+    val authError: String? = null,
+    val models: List<Pair<String, String>> = emptyList()
 )
 
 class NavioViewModel(application: Application) : AndroidViewModel(application) {
 
     private val store = NavioStore.get(application)
     private val agent = NavioAgent(application)
+    private val auth = AuthManager.get(application)
     private val local = MutableStateFlow(LocalState())
 
     val uiState: StateFlow<NavioUiState> =
-        combine(local, store.conversations, store.automations, store.settings) { l, conversations, automations, settings ->
+        combine(local, store.conversations, store.automations, store.settings, auth.user) { l, conversations, automations, settings, user ->
             NavioUiState(
                 mode = l.mode,
                 conversation = conversations.firstOrNull { it.id == l.conversationId },
@@ -61,9 +73,46 @@ class NavioViewModel(application: Application) : AndroidViewModel(application) {
                 settings = settings,
                 chatBusy = l.chatBusy,
                 computerBusy = l.computerBusy,
-                computerReply = l.computerReply
+                computerReply = l.computerReply,
+                user = user,
+                authBusy = l.authBusy,
+                authError = l.authError,
+                models = l.models
             )
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, NavioUiState(settings = store.settings.value))
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, NavioUiState(settings = store.settings.value, user = auth.user.value))
+
+    init {
+        viewModelScope.launch {
+            val models = OpenRouterClient.listModels()
+            if (models.isNotEmpty()) local.update { it.copy(models = models) }
+        }
+    }
+
+    // region auth
+
+    fun signInUrl(): Uri {
+        local.update { it.copy(authBusy = true, authError = null) }
+        return auth.signInUrl()
+    }
+
+    /** Handles `navio://auth?code=…`; returns false if [uri] isn't an auth callback. */
+    fun handleAuthCallback(uri: Uri?): Boolean {
+        if (!auth.isAuthCallback(uri)) return false
+        viewModelScope.launch {
+            val error = auth.completeSignIn(uri!!)
+            local.update { it.copy(authBusy = false, authError = error) }
+        }
+        return true
+    }
+
+    /** User came back from the browser without finishing sign-in. */
+    fun onResumeWithoutCallback() {
+        if (local.value.authBusy && auth.user.value == null) local.update { it.copy(authBusy = false) }
+    }
+
+    fun signOut() = auth.signOut()
+
+    // endregion
 
     private val _snackbar = MutableStateFlow<String?>(null)
     val snackbar: StateFlow<String?> = _snackbar.asStateFlow()
@@ -178,8 +227,4 @@ class NavioViewModel(application: Application) : AndroidViewModel(application) {
 
     // endregion
 
-    fun saveSettings(apiKey: String, model: String) {
-        store.updateSettings { it.copy(apiKeyOverride = apiKey, model = model) }
-        _snackbar.value = "Ayarlar kaydedildi"
-    }
 }

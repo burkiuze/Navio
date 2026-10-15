@@ -46,7 +46,19 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!handledAuthCallback) viewModel.onResumeWithoutCallback()
+        handledAuthCallback = false
+    }
+
+    private var handledAuthCallback = false
+
     private fun handleIntent(intent: Intent?) {
+        if (viewModel.handleAuthCallback(intent?.data)) {
+            handledAuthCallback = true
+            return
+        }
         if (intent?.getBooleanExtra(EXTRA_OPEN_COMPUTER, false) == true) viewModel.setMode(AppMode.COMPUTER)
     }
 
