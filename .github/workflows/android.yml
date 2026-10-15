@@ -5,6 +5,9 @@ on:
     branches: ["main", "ccr-*"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,3 +30,12 @@ jobs:
         with:
           name: navio-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+      - name: Publish APK as "latest" pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: navio-latest
+          name: Navio (son derleme)
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          files: app/build/outputs/apk/debug/app-debug.apk
+          body: "Son derleme: ${{ github.sha }}. Ilk acilista Ayarlar'dan OpenRouter API anahtarini girin."
