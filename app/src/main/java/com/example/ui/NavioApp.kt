@@ -66,8 +66,8 @@ fun NavioApp(viewModel: NavioViewModel = viewModel()) {
     val context = LocalContext.current
 
     if (state.user == null) {
-        LoginScreen(busy = state.authBusy, error = state.authError) {
-            context.startActivity(Intent(Intent.ACTION_VIEW, viewModel.signInUrl()))
+        LoginScreen(busy = state.authBusy, error = state.authError) { provider ->
+            viewModel.signIn(provider) { url -> context.startActivity(Intent(Intent.ACTION_VIEW, url)) }
         }
         return
     }

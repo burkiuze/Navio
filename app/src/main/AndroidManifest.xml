@@ -27,14 +27,14 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Supabase OAuth redirect: navio://auth?code=… -->
+            <!-- Clerk OAuth redirect (clerk-android convention): clerk://<applicationId>.callback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="navio" android:host="auth" />
+                <data android:scheme="clerk" android:host="${applicationId}.callback" />
             </intent-filter>
         </activity>
     </application>

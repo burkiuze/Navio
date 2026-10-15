@@ -5,13 +5,11 @@ Navio, iki modlu bir yapay zekâ asistanıdır (Android / Jetpack Compose):
 - **Chat** — OpenRouter modelleriyle sohbet. Web araması OpenRouter'ın `web` eklentisiyle yapılır; yanıtların üstünde kaynak kartları gösterilir. Sohbette "her sabah 9'da … özetle" gibi bir istek yazarsanız yapay zekâ `create_automation` aracıyla otomasyonu kendisi kurar.
 - **Computer** — Zamanlanmış otomasyonlar (saatlik / günlük / haftalık / elle). Her çalıştırmada talimat web aramasıyla yürütülür, sonuç kaydedilir ve bildirim olarak gelir (WorkManager). Otomasyonlar alttaki kutuya doğal dille yazılarak ya da `+` ile form üzerinden kurulabilir.
 
-## Giriş (Supabase + Google)
+## Giriş (Clerk: Google, GitHub, GitLab)
 
-Giriş Supabase Auth ile Google üzerinden yapılır (`navio` projesi, tarayıcı OAuth + PKCE, dönüş adresi `navio://auth`).
-Supabase panelinde bir kez yapılması gerekenler:
+Giriş Clerk ile yapılır (`Navio` uygulaması, geliştirme ortamı `proud-rooster-3295.clerk.accounts.dev`). Uygulama Clerk Frontend API'sini doğrudan kullanır (resmi Android SDK'sı bu projeden daha yeni Kotlin/Compose istiyor): giriş tarayıcıda açılır ve `clerk://<applicationId>.callback` adresine döner.
 
-1. **Authentication → Sign In / Providers → Google**: etkinleştir; Google Cloud'daki *Web application* OAuth istemcisinin Client ID ve Secret'ını gir. Google Cloud'da yetkili yönlendirme URI'si: `https://ihrxwdwglfqletaclwqu.supabase.co/auth/v1/callback`
-2. **Authentication → URL Configuration → Redirect URLs**: `navio://auth` ekle.
+Geliştirme ortamında Google, GitHub ve GitLab, Clerk'in ortak OAuth bilgileriyle çalışır; ek ayar gerekmez. Production'a geçerken her sağlayıcı için kendi OAuth bilgilerinizi Clerk panelinden girin.
 
 ## Yapay zekâ anahtarı
 

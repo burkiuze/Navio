@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.AuthProvider
 import com.example.ui.components.NavioLogo
 import com.example.ui.theme.Background
 import com.example.ui.theme.ErrorRed
@@ -35,7 +36,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
 @Composable
-fun LoginScreen(busy: Boolean, error: String?, onGoogleSignIn: () -> Unit) {
+fun LoginScreen(busy: Boolean, error: String?, onSignIn: (AuthProvider) -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
@@ -60,24 +61,13 @@ fun LoginScreen(busy: Boolean, error: String?, onGoogleSignIn: () -> Unit) {
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(36.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .clickable(enabled = !busy, onClick = onGoogleSignIn)
-                    .testTag("google_sign_in"),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Color.Black)
-                } else {
-                    GoogleMark()
-                    Spacer(Modifier.width(12.dp))
-                    Text("Google ile devam et", color = Color(0xFF1F1F1F), fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                }
+            if (busy) {
+                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = TextPrimary)
+                Spacer(Modifier.height(12.dp))
+            }
+            AuthProvider.entries.forEach { provider ->
+                ProviderButton(provider, enabled = !busy) { onSignIn(provider) }
+                Spacer(Modifier.height(12.dp))
             }
             if (error != null) {
                 Spacer(Modifier.height(16.dp))
@@ -88,6 +78,25 @@ fun LoginScreen(busy: Boolean, error: String?, onGoogleSignIn: () -> Unit) {
 }
 
 @Composable
-private fun GoogleMark() {
-    Text("G", color = Color(0xFF4285F4), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+private fun ProviderButton(provider: AuthProvider, enabled: Boolean, onClick: () -> Unit) {
+    val (mark, markColor) = when (provider) {
+        AuthProvider.GOOGLE -> "G" to Color(0xFF4285F4)
+        AuthProvider.GITHUB -> "\u25CF" to Color(0xFF1F1F1F)
+        AuthProvider.GITLAB -> "\u25B2" to Color(0xFFFC6D26)
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag("sign_in_${provider.name.lowercase()}"),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(mark, color = markColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(12.dp))
+        Text("${provider.label} ile devam et", color = Color(0xFF1F1F1F), fontSize = 16.sp, fontWeight = FontWeight.Medium)
+    }
 }

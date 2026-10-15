@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.automation.AutomationScheduler
 import com.example.data.AgentMode
 import com.example.data.AuthManager
+import com.example.data.AuthProvider
 import com.example.data.Automation
 import com.example.data.ChatMessage
 import com.example.data.Conversation
@@ -90,9 +91,16 @@ class NavioViewModel(application: Application) : AndroidViewModel(application) {
 
     // region auth
 
-    fun signInUrl(): Uri {
+    /** Starts OAuth with [provider]; [openBrowser] receives the provider URL. */
+    fun signIn(provider: AuthProvider, openBrowser: (Uri) -> Unit) {
         local.update { it.copy(authBusy = true, authError = null) }
-        return auth.signInUrl()
+        viewModelScope.launch {
+            try {
+                openBrowser(auth.startSignIn(provider))
+            } catch (e: Exception) {
+                local.update { it.copy(authBusy = false, authError = e.message ?: "Giriş başlatılamadı.") }
+            }
+        }
     }
 
     /** Handles `navio://auth?code=…`; returns false if [uri] isn't an auth callback. */
@@ -110,7 +118,9 @@ class NavioViewModel(application: Application) : AndroidViewModel(application) {
         if (local.value.authBusy && auth.user.value == null) local.update { it.copy(authBusy = false) }
     }
 
-    fun signOut() = auth.signOut()
+    fun signOut() {
+        viewModelScope.launch { auth.signOut() }
+    }
 
     // endregion
 
